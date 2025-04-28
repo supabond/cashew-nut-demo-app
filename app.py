@@ -7,6 +7,9 @@ import pandas as pd
 import streamlit.components.v1 as components
 import model
 import plotly.graph_objects as go
+from sklearn.metrics import confusion_matrix
+import plotly.express as px
+import seaborn as sns
 
 # Initialize session state
 if "prediction_counts" not in st.session_state:
@@ -57,6 +60,7 @@ def app():
     main_df[["label"]] = main_df[["label"]].astype(str)
     labels = ['True', 'False']
     values = [0,0]
+    actual_array, predict_array = [],[]
     size_error_percentage_acc = 0
     weight_error_percentage_acc = 0
     
@@ -90,7 +94,7 @@ def app():
             border: none;
             padding: 0 1rem 0 0;
             margin-top: 0.5rem;
-            height: 220px;
+            height: 450px;
             overflow-y: scroll;
         }
         [data-testid="stVerticalBlockBorderWrapper"][height= "70"]  {
@@ -98,18 +102,22 @@ def app():
             overflow: hidden;
             padding: 2px;
         }
+        [data-testid="stVerticalBlockBorderWrapper"][height= "40"]  {
+             border: none;
+        }
         [data-testid="stVerticalBlockBorderWrapper"][height= "700"]  {
             border: none;
-            padding: 0 1rem 0 0;
+            padding: 0 1rem 0.5rem 0;
             margin: 0;
-            max-height: 90vh;
+            max-height: 75vh;
             overflow-y: scroll;
         }
         span > div > p {
             font-size: 18px !important;
             font-weight: 600;
             padding-left: 0.5rem;
-        }            
+            
+        }       
         [data-testid="stExpanderDetails"] {
             padding: 2rem 1rem 0.5rem 1.5rem;
         }
@@ -126,18 +134,18 @@ def app():
     with input_panel:
         st.markdown(
             "<h1 style='font-size: 30px; padding: 0; color: #006000;'>AI System for Assessing Cashew Nut Quality</h1>"
-            "<p style='padding-top: 16px; padding-bottom: 16px;'>This is a simple app to demonstrate the results of assessing cashew nut quality.</p>",
+            "<p style='padding-top: 16px; padding-bottom: 0px;'>This is a simple app to demonstrate the results of assessing cashew nut quality.</p>",
             unsafe_allow_html=True
         )
 
-        overall_stat = st.empty()
 
         
-        st.markdown(
-            "<h2 style='font-size: 20px; margin-top: 1rem; padding-bottom: 10px;'>Upload Images</h2>",
-            unsafe_allow_html=True
-        )
         with st.container(height=400):
+            overall_stat = st.empty()
+            st.markdown(
+                "<h2 style='font-size: 20px; margin-top: 1rem; padding-bottom: 10px;'>Upload Images</h2>",
+                unsafe_allow_html=True
+            )
             
             uploaded_files = st.file_uploader(
                 "Choose image files",
@@ -198,143 +206,169 @@ def app():
                     error_width, error_length, error_weight = (abs(actual_width - predict_width), abs(actual_length - predict_length), abs(actual_total_weight - model6))
                     error_width_percentage, error_length_percentage, error_weight_percentage = ((error_width*100)/actual_width, (error_length*100)/actual_length, (error_weight*100)/actual_total_weight)
 
-                    is_correct = (result == int(label))
+                    label = int(label)
+                    is_correct = (result == label)
                     if is_correct:
                         values[0] += 1  # Correct
                     else:
                         values[1] += 1  # Incorrect
+
+                    actual_array.append(label)
+                    predict_array.append(result)
                         
                     size_error_percentage_acc += (error_width_percentage+error_length_percentage)/2
                     weight_error_percentage_acc += (error_weight_percentage)
-                    
+
+                    if not is_correct:
+                        image_title += "  ❌"
+                    else:
+                        image_title += "  ✅"
+
+            
+                    with st.expander(image_title):
+                        col1, col2 = st.columns([2,5], gap="large")
+                        with col1:
+                            st.image(rect_image[:,:,::-1])
+                            st.image(area_image[:,:,::-1], "Label: "+str(label))
+                            # st.image(roi1[:,:,::-1])
+                            # st.image(roi2[:,:,::-1])
+                            
+                        with col2:
+                            components.html(f"""
+                                <style>
+                                    body {{
+                                        margin: 0;
+                                    }}
+                                    .detail-row {{
+                                        display: flex; flex-direction: row; gap: 2rem;
+                                    }}
+                                    .margin-bottom {{ margin: 0 0 8px 0; }}
+                                    .detail-column {{
+                                        display: flex; flex-direction: row; align-items: center; letter-spacing: 0.5px; font-family: "Source Sans Pro", sans-serif;
+                                    }}
+                                    .highlight {{
+                                        padding: 5px 8px; border-radius: 5px;
+                                    }}
+                                    .background-font-green {{background: rgba(33, 195, 84, 0.1); color: rgb(23, 114, 51); font-size: 14px; width: 2.5rem; text-align: center;}}
+                                    .background-font-gray  {{background: rgb(240, 242, 246);      color: rgba(49, 51, 63, 0.8); font-size: 14px; width: 2.5rem; text-align: center;}}
+                                    .background-font-red   {{background: rgba(255, 43, 43, 0.09); color: rgb(125, 53, 59); font-size: 14px; width: 2.5rem; text-align: center;}}
+                                    .font-blackblue-1 {{ color: rgb(49, 51, 63); width: 70px;}}
+                                    .font-blackblue-2 {{ color: rgb(49, 51, 63); width: 160px;}}
+                                    .font-blackblue-3 {{ color: rgb(49, 51, 63); width: 100px;}}
+                                    
+                                </style>
+                                <div class="detail-row margin-bottom">
+                                    <div class="detail-column"><div class="font-blackblue-1">width:</div>  <div class="highlight background-font-green">{round(actual_width,2)}</div></div>
+                                    <div class="detail-column"><div class="font-blackblue-1">predict:</div><div class="highlight background-font-gray">{round(predict_width,2)}</div></div>
+                                    <div class="detail-column"><div class="font-blackblue-1">error:</div>  <div class="highlight background-font-red">{round(error_width,2)}</div></div>
+                                    <div class="detail-column"><div class="font-blackblue-1">error%:</div> <div class="highlight background-font-red">{round(error_width_percentage,2)}</div></div>
+                                </div>
+                                <div class="detail-row margin-bottom">
+                                    <div class="detail-column"><div class="font-blackblue-1">length:</div>  <div class="highlight background-font-green">{round(actual_length,2)}</div></div>
+                                    <div class="detail-column"><div class="font-blackblue-1">predict:</div><div class="highlight background-font-gray">{round(predict_length,2)}</div></div>
+                                    <div class="detail-column"><div class="font-blackblue-1">error:</div>  <div class="highlight background-font-red">{round(error_length,2)}</div></div>
+                                    <div class="detail-column"><div class="font-blackblue-1">error%:</div> <div class="highlight background-font-red">{round(error_length_percentage,2)}</div></div>
+                                </div>
+                                <div class="detail-row">
+                                    <div class="detail-column"><div class="font-blackblue-1">weight:</div>  <div class="highlight background-font-green">{round(actual_total_weight,2)}</div></div>
+                                    <div class="detail-column"><div class="font-blackblue-1">predict:</div><div class="highlight background-font-gray">{round(model6,2)}</div></div>
+                                    <div class="detail-column"><div class="font-blackblue-1">error:</div>  <div class="highlight background-font-red">{round(error_weight,2)}</div></div>
+                                    <div class="detail-column"><div class="font-blackblue-1">error%:</div> <div class="highlight background-font-red">{round(error_weight_percentage,2)}</div></div>
+                                </div>
+                                <div style="display: flex; flex-direction: row; margin-top: 3rem;">
+                                    <div style="display: flex; flex-direction: column; margin-right: 4rem;">
+                                        <div class="detail-column margin-bottom"><div class="font-blackblue-2">predict total area:</div><div style="width: 3rem;" class="highlight background-font-gray">{round(predict_total_area,2)}</div></div>
+                                        <div class="detail-column margin-bottom"><div class="font-blackblue-2">predict kernel area:</div><div style="width: 3rem;" class="highlight background-font-gray">{round(predict_kernel_area,2)}</div></div>
+                                        <div class="detail-column margin-bottom"><div class="font-blackblue-2">area%:</div><div style="width: 3rem;" class="highlight background-font-gray">{round(area_percentage,2)}</div></div>
+                                    </div>
+                                    <div style="display: flex; flex-direction: column; margin-right: 2rem;">
+                                        <div class="detail-column margin-bottom"><div class="font-blackblue-3">model2:</div><div class="highlight background-font-gray">{model2}</div></div>
+                                        <div class="detail-column margin-bottom"><div class="font-blackblue-3">model3-1:</div><div class="highlight background-font-gray">{model3_1}</div></div>
+                                        <div class="detail-column margin-bottom"><div class="font-blackblue-3">model3-2:</div><div class="highlight background-font-gray">{model3_2}</div></div>
+                                        <div class="detail-column margin-bottom"><div class="font-blackblue-3">model5:</div><div class="highlight background-font-gray">{model5}</div></div>
+                                    </div>
+                                    <div style="display: flex; flex-direction: column; margin-right: 2rem;">
+                                        <div class="detail-column margin-bottom"><div class="font-blackblue-1">result:</div><div class="highlight background-font-gray">{result}</div></div>
+                                        <div class="detail-column margin-bottom"><div class="font-blackblue-1">label:</div><div class="highlight background-font-green">{label}</div></div>
+                                    </div>
+                                </div>
+                            """, height=350)
                 else:
                     st.warning(f"No data found for image {image_title} in the dataset.")
-
-                
-                with st.expander(image_title):
-                    col1, col2 = st.columns([2,5], gap="large")
-                    with col1:
-                        st.image(rect_image[:,:,::-1])
-                        st.image(area_image[:,:,::-1], "Label: "+str(label))
-                        # st.image(roi1[:,:,::-1])
-                        # st.image(roi2[:,:,::-1])
-                        
-                    with col2:
-                        components.html(f"""
-                            <style>
-                                body {{
-                                    margin: 0;
-                                }}
-                                .detail-row {{
-                                    display: flex; flex-direction: row; gap: 2rem;
-                                }}
-                                .margin-bottom {{ margin: 0 0 8px 0; }}
-                                .detail-column {{
-                                    display: flex; flex-direction: row; align-items: center; letter-spacing: 0.5px; font-family: "Source Sans Pro", sans-serif;
-                                }}
-                                .highlight {{
-                                    padding: 5px 8px; border-radius: 5px;
-                                }}
-                                .background-font-green {{background: rgba(33, 195, 84, 0.1); color: rgb(23, 114, 51); font-size: 14px; width: 2.5rem; text-align: center;}}
-                                .background-font-gray  {{background: rgb(240, 242, 246);      color: rgba(49, 51, 63, 0.8); font-size: 14px; width: 2.5rem; text-align: center;}}
-                                .background-font-red   {{background: rgba(255, 43, 43, 0.09); color: rgb(125, 53, 59); font-size: 14px; width: 2.5rem; text-align: center;}}
-                                .font-blackblue-1 {{ color: rgb(49, 51, 63); width: 70px;}}
-                                .font-blackblue-2 {{ color: rgb(49, 51, 63); width: 160px;}}
-                                .font-blackblue-3 {{ color: rgb(49, 51, 63); width: 100px;}}
-                                
-                            </style>
-                            <div class="detail-row margin-bottom">
-                                <div class="detail-column"><div class="font-blackblue-1">width:</div>  <div class="highlight background-font-green">{round(actual_width,2)}</div></div>
-                                <div class="detail-column"><div class="font-blackblue-1">predict:</div><div class="highlight background-font-gray">{round(predict_width,2)}</div></div>
-                                <div class="detail-column"><div class="font-blackblue-1">error:</div>  <div class="highlight background-font-red">{round(error_width,2)}</div></div>
-                                <div class="detail-column"><div class="font-blackblue-1">error%:</div> <div class="highlight background-font-red">{round(error_width_percentage,2)}</div></div>
-                            </div>
-                            <div class="detail-row margin-bottom">
-                                <div class="detail-column"><div class="font-blackblue-1">length:</div>  <div class="highlight background-font-green">{round(actual_length,2)}</div></div>
-                                <div class="detail-column"><div class="font-blackblue-1">predict:</div><div class="highlight background-font-gray">{round(predict_length,2)}</div></div>
-                                <div class="detail-column"><div class="font-blackblue-1">error:</div>  <div class="highlight background-font-red">{round(error_length,2)}</div></div>
-                                <div class="detail-column"><div class="font-blackblue-1">error%:</div> <div class="highlight background-font-red">{round(error_length_percentage,2)}</div></div>
-                            </div>
-                            <div class="detail-row">
-                                <div class="detail-column"><div class="font-blackblue-1">weight:</div>  <div class="highlight background-font-green">{round(actual_total_weight,2)}</div></div>
-                                <div class="detail-column"><div class="font-blackblue-1">predict:</div><div class="highlight background-font-gray">{round(model6,2)}</div></div>
-                                <div class="detail-column"><div class="font-blackblue-1">error:</div>  <div class="highlight background-font-red">{round(error_weight,2)}</div></div>
-                                <div class="detail-column"><div class="font-blackblue-1">error%:</div> <div class="highlight background-font-red">{round(error_weight_percentage,2)}</div></div>
-                            </div>
-                            <div style="display: flex; flex-direction: row; margin-top: 3rem;">
-                                <div style="display: flex; flex-direction: column; margin-right: 4rem;">
-                                    <div class="detail-column margin-bottom"><div class="font-blackblue-2">predict total area:</div><div style="width: 3rem;" class="highlight background-font-gray">{round(predict_total_area,2)}</div></div>
-                                    <div class="detail-column margin-bottom"><div class="font-blackblue-2">predict kernel area:</div><div style="width: 3rem;" class="highlight background-font-gray">{round(predict_kernel_area,2)}</div></div>
-                                    <div class="detail-column margin-bottom"><div class="font-blackblue-2">area%:</div><div style="width: 3rem;" class="highlight background-font-gray">{round(area_percentage,2)}</div></div>
-                                </div>
-                                <div style="display: flex; flex-direction: column; margin-right: 2rem;">
-                                    <div class="detail-column margin-bottom"><div class="font-blackblue-3">model2:</div><div class="highlight background-font-gray">{model2}</div></div>
-                                    <div class="detail-column margin-bottom"><div class="font-blackblue-3">model3-1:</div><div class="highlight background-font-gray">{model3_1}</div></div>
-                                    <div class="detail-column margin-bottom"><div class="font-blackblue-3">model3-2:</div><div class="highlight background-font-gray">{model3_2}</div></div>
-                                    <div class="detail-column margin-bottom"><div class="font-blackblue-3">model5:</div><div class="highlight background-font-gray">{model5}</div></div>
-                                </div>
-                                <div style="display: flex; flex-direction: column; margin-right: 2rem;">
-                                    <div class="detail-column margin-bottom"><div class="font-blackblue-1">result:</div><div class="highlight background-font-gray">{result}</div></div>
-                                    <div class="detail-column margin-bottom"><div class="font-blackblue-1">label:</div><div class="highlight background-font-green">{label}</div></div>
-                                </div>
-                            </div>
-                        """, height=350)
-
+        st.markdown(
+            "<hr style='margin: 1rem 0 0.5rem 0;'><p style='font-size: 14px; color: gray; margin-bottom: 0; margin-top:  8px;'>Model 2: Uses kernel weight, total area, and area percentage as features. Model 5: Uses total area and total weight as features.</p>"
+            "<p style='font-size: 14px; color: gray; margin-bottom: 8px;                  '>Model 3: Uses image data as a feature (with -1, -2 are left and right sides ). Result: Weight voting across all models.</p>",
+            unsafe_allow_html=True
+        )
     with overall_stat.container():
         if True:
-            donut_chart, number_chart = st.columns([2,3], gap="small")
-            with donut_chart:
-                total = sum(values)
-                fig = go.Figure(data=[go.Pie(
-                    labels=labels,
-                    values=values,
-                    hole=0.7,
-                    marker=dict(
-                        colors=['rgb(0, 96, 0)', 'rgba(0, 96, 0, 0.2)'],
-                        line=dict(color='#ffffff', width=2)
-                    ),
-                    textinfo='none',
-                    sort=False,
-                    direction='clockwise',
-                    rotation=90,
-                    domain=dict(x=[0, 1], y=[0, 1])
-                )])
-                fig.update_layout(
-                    showlegend=False,
-                    annotations=[dict(
-                        text=f"{values[0]}/{total}",
-                        x=0.5,
-                        y=0.5,
-                        font=dict(size=20, color='rgb(0, 96, 0)', family='Arial'),
-                        showarrow=False
-                    )],
-                    paper_bgcolor='rgba(0,0,0,0)',
-                    plot_bgcolor='rgba(0,0,0,0)',
-                    width=150,
-                    height=150,
-                    margin=dict(l=0, r=0, t=0, b=24),
-                    title={
-                        'text': "prediction",
-                        'x': 0.5,
-                        'y': 0.01,
-                        'xanchor': 'center',
-                        'yanchor': 'bottom',
-                        'font': dict(size=14, color='black', family="Source Sans Pro, sans-serif")
-                    }
-                )
-                st.plotly_chart(fig)
-            
-            with number_chart:
-                with st.container(height=70):
-                    components.html(f"""
-                        <h5 style="text-align: center; margin: 0; color: rgb(49, 51, 63); font-family:Source Sans Pro, sans-serif;font-weight: normal;margin-bottom: 3px;">size error</h5>
-                        <h2 style="text-align: center; margin: 0; color: green; font-family:Source Sans Pro, sans-serif;">{round(size_error_percentage_acc / len(images) if len(images) > 0 else 0, 2)}%</h2>
-                    """)
-                with st.container(height=70):
-                    components.html(f"""
-                        <h5 style="text-align: center; margin: 0; color: rgb(49, 51, 63); font-family:Source Sans Pro, sans-serif;font-weight: normal;margin-bottom: 3px;">weight error</h5>
-                        <h2 style="text-align: center; margin: 0; color: green; font-family:Source Sans Pro, sans-serif;">{round(weight_error_percentage_acc / len(images) if len(images) > 0 else 0, 2)}%</h2>
-                    """)
+            tab1, tab2 = st.tabs(["Accuracy", "Matrix"])
+            with tab1:
+                
+                
+                donut_chart, number_chart = st.columns([2,3], gap="small")
+                with donut_chart:
+                    total = sum(values)
+                    fig = go.Figure(data=[go.Pie(
+                        labels=labels,
+                        values=values,
+                        hole=0.7,
+                        marker=dict(
+                            colors=['rgb(0, 96, 0)', 'rgba(0, 96, 0, 0.2)'],
+                            line=dict(color='#ffffff', width=2)
+                        ),
+                        textinfo='none',
+                        sort=False,
+                        direction='clockwise',
+                        rotation=90,
+                        domain=dict(x=[0, 1], y=[0, 1])
+                    )])
+                    fig.update_layout(
+                        showlegend=False,
+                        annotations=[dict(
+                            text=f"{values[0]}/{total}",
+                            x=0.5,
+                            y=0.5,
+                            font=dict(size=20, color='rgb(0, 96, 0)', family='Arial'),
+                            showarrow=False
+                        )],
+                        paper_bgcolor='rgba(0,0,0,0)',
+                        plot_bgcolor='rgba(0,0,0,0)',
+                        width=150,
+                        height=150,
+                        margin=dict(l=0, r=0, t=0, b=24),
+                        title={
+                            'text': "prediction",
+                            'x': 0.5,
+                            'y': 0.01,
+                            'xanchor': 'center',
+                            'yanchor': 'bottom',
+                            'font': dict(size=14, color='black', family="Source Sans Pro, sans-serif")
+                        }
+                    )
+                    st.plotly_chart(fig)
+                with number_chart:
+                    with st.container(height=70):
+                            components.html(f"""
+                                <h5 style="text-align: center; margin: 0; color: rgb(49, 51, 63); font-family:Source Sans Pro, sans-serif;font-weight: normal;margin-bottom: 3px;">size error</h5>
+                                <h2 style="text-align: center; margin: 0; color: green; font-family:Source Sans Pro, sans-serif;">{round(size_error_percentage_acc / len(images) if len(images) > 0 else 0, 2)}%</h2>
+                            """)
+    
+                    with st.container(height=70):
+                        components.html(f"""
+                            <h5 style="text-align: center; margin: 0; color: rgb(49, 51, 63); font-family:Source Sans Pro, sans-serif;font-weight: normal;margin-bottom: 3px;">weight error</h5>
+                            <h2 style="text-align: center; margin: 0; color: green; font-family:Source Sans Pro, sans-serif;">{round(weight_error_percentage_acc / len(images) if len(images) > 0 else 0, 2)}%</h2>
+                        """)
+            with tab2:
+                
+                cm = confusion_matrix(actual_array, predict_array, labels=[0,50,100])
+                fig2, ax = plt.subplots(figsize=(5, 3))  # Optional: for controlling figure size
+                sns.heatmap(cm, annot=True, fmt="d", cmap="Greens", xticklabels=[0, 50, 100], yticklabels=[0, 50, 100], ax=ax, annot_kws={"size": 12})
+                ax.set_xlabel("Predicted Label", fontsize=12, weight='light')
+                ax.set_ylabel("True Label", fontsize=12, weight='light')
+                st.pyplot(fig2)
+           
+        
             #end
 
 if __name__ == "__main__":
